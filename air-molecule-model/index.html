@@ -1,0 +1,1931 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<script id="lumi-getcssvar">
+window.getCssVar = window.getCssVar || function(name) {
+  try {
+    return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+  } catch (e) { return ''; }
+};
+</script>
+
+<script id="lumi-canvas-guard">
+(function() {
+  if (window.__lumiCanvasGuard) return;
+  window.__lumiCanvasGuard = true;
+  var MAX_PX = 4096, MIN_FONT_PX = 12;
+  try {
+    var CP = HTMLCanvasElement.prototype;
+    var BOX = {width: 'clientWidth', height: 'clientHeight'}, D = {};
+    Object.keys(BOX).forEach(function(p) {
+      D[p] = Object.getOwnPropertyDescriptor(CP, p);
+    });
+    var tracking = function(el, p) {
+      var box = el[BOX[p]];
+      return !el.style[p] && box > 0 && box === D[p].get.call(el) &&
+          box === el['__lumiLast' + p];
+    };
+    var MAX = {width: 'maxWidth', height: 'maxHeight'};
+    var PAD = {width: ['paddingLeft', 'paddingRight'],
+               height: ['paddingTop', 'paddingBottom']};
+    var avail = function(el, p) {
+      var pe = el.parentElement;
+      if (!pe) return 0;
+      var cs = getComputedStyle(pe);
+      return pe[BOX[p]] - parseFloat(cs[PAD[p][0]]) -
+          parseFloat(cs[PAD[p][1]]);
+    };
+    Object.keys(BOX).forEach(function(p) {
+      var d = D[p];
+      if (!d || !d.set || !d.get) return;
+      Object.defineProperty(CP, p, {
+        configurable: true, enumerable: d.enumerable, get: d.get,
+        set: function(v) {
+          var n = +v, box = this[BOX[p]];
+          if (n > MAX_PX) n = MAX_PX;
+          if (n > box && tracking(this, p)) {
+            var el = this, pins = {};
+            Object.keys(BOX).forEach(function(q) {
+              if (tracking(el, q)) pins[q] = avail(el, q) ||
+                  el['__lumiBox' + q];
+            });
+            Object.keys(pins).forEach(function(q) {
+              el.style[q] = '100%';
+              el.style[MAX[q]] = pins[q] + 'px';
+            });
+            n = box;
+          }
+          this['__lumiBox' + p] = box;
+          this['__lumiLast' + p] = n;
+          d.set.call(this, isNaN(n) ? v : n);
+        }
+      });
+    });
+  } catch (e) {}
+  try {
+    var XP = CanvasRenderingContext2D.prototype;
+    var px = /(\d*\.?\d+)px/;
+    var floorFont = function(ctx) {
+      var f = ctx.font, m = px.exec(f);
+      if (m && +m[1] >= 4 && +m[1] < MIN_FONT_PX) ctx.font = f.replace(px, MIN_FONT_PX + 'px');
+    };
+    ['fillText', 'strokeText', 'measureText'].forEach(function(k) {
+      var o = XP[k];
+      if (typeof o !== 'function') return;
+      XP[k] = function() { floorFont(this); return o.apply(this, arguments); };
+    });
+  } catch (e) {}
+})();
+</script>
+
+<style id="lumi-runtime">
+@import url('https://fonts.googleapis.com/css2?family=Google+Sans+Flex:ital,wght@0,300..700;1,300..700&family=Google+Sans+Code:ital,wght,MONO@0,300..700,0..1;1,300..700,0..1&display=swap');
+
+:root {
+  --body-bg: transparent;
+  --ff-sans: 'Google Sans Flex', 'Google Sans Text', 'Google Sans', sans-serif;
+  --ff-mono: 'Google Sans Code', 'Google Sans Mono', monospace;
+
+  --lumi-sys-spacing--xxs: 2px;
+  --lumi-sys-spacing--xs: 4px;
+  --lumi-sys-spacing--s: 8px;
+  --lumi-sys-spacing--m: 12px;
+  --lumi-sys-spacing--l: 16px;
+  --lumi-sys-spacing--xl: 20px;
+  --lumi-sys-spacing--xxl: 24px;
+  --lumi-sys-spacing--3xl: 28px;
+  --lumi-sys-spacing--4xl: 36px;
+
+  --lumi-sys-shape--none: 0px;
+  --lumi-sys-shape--extra-small: 4px;
+  --lumi-sys-shape--small: 8px;
+  --lumi-sys-shape--medium: 12px;
+  --lumi-sys-shape--large: 16px;
+  --lumi-sys-shape--large-increased: 20px;
+  --lumi-sys-shape--large-max: 24px;
+  --lumi-sys-shape--xl: 28px;
+  --lumi-sys-shape--xl-increased: 32px;
+  --lumi-sys-shape--xl-max: 40px;
+  --lumi-sys-shape--xxl: 48px;
+  --lumi-sys-shape--xxl-increased: 56px;
+  --lumi-sys-shape--full: 999px;
+
+  --lumi-sys-elevation--level1: 0 0 20px 0 rgba(0, 0, 0, 0.04);
+  --lumi-sys-elevation--level2: 0 0 20px 0 rgba(0, 0, 0, 0.11);
+
+  --lumi-sys-color--surface: #fdfcfc;
+  --lumi-sys-color--surface-dim: #f2f0f0;
+  --lumi-sys-color--surface-bright: #ffffff;
+  --lumi-sys-color--surface-background: #fdfcfc;
+  --lumi-sys-color--surface-accent: #9dd2ff;
+  --lumi-sys-color--surface-container: #f2f0f0;
+  --lumi-sys-color--surface-container-high: #e6e6e6;
+  --lumi-sys-color--surface-translucent: rgba(255, 255, 255, 0.88);
+  --lumi-sys-color--on-surface: #000000;
+  --lumi-sys-color--on-surface-default: #000000;
+  --lumi-sys-color--on-surface-variant: rgba(0, 0, 0, 0.55);
+  --lumi-sys-color--on-surface-de-emphasis: rgba(0, 0, 0, 0.55);
+  --lumi-sys-color--on-surface-low: rgba(0, 0, 0, 0.08);
+  --lumi-sys-color--positive: #008052;
+  --lumi-sys-color--positive-container: #daf9d4;
+  --lumi-sys-color--on-positive-container: #009954;
+  --lumi-sys-color--error: #de2d29;
+  --lumi-sys-color--error-container: #ffdeec;
+  --lumi-sys-color--on-error-container: #de2d29;
+  --lumi-sys-color--accent: #9dd2ff;
+  --lumi-sys-color--accent-container: #dcf1ff;
+  --lumi-sys-color--accent-fixed: #3186ff;
+  --lumi-sys-color--primary: #3186ff;
+  --lumi-sys-color--on-primary: #ffffff;
+  --lumi-sys-color--black: #000000;
+  --lumi-sys-color--white: #ffffff;
+  --lumi-sys-color--outline: #727676;
+  --lumi-sys-color--stroke-default: #e3e3e3;
+
+  --lumi-sys-opacity-state--hover: 0.08;
+  --lumi-sys-opacity-state--focus: 0.08;
+  --lumi-sys-opacity-state--pressed: 0.12;
+  --lumi-sys-opacity-state--disabled: 0.12;
+  --lumi-sys-opacity-state--disabled-label: 0.38;
+
+  --lumi-sys-color--code-background: #000000;
+  --lumi-sys-color--code-primary-text: #ffffff;
+  --lumi-sys-color--code-blue-text: #4fa0ff;
+  --lumi-sys-color--code-green-text: #60d673;
+  --lumi-sys-color--code-grey-text: #808080;
+  --lumi-sys-color--code-pink-text: #ff96da;
+  --lumi-sys-color--code-purple-text: #969dff;
+  --lumi-sys-color--code-red-text: #ff5a59;
+  --lumi-sys-color--code-yellow-text: #ffdb0f;
+
+  --lumi-sys-color--chart-series-1: #2575fc;
+  --lumi-sys-color--chart-series-2: #5b6e9e;
+  --lumi-sys-color--chart-series-3: #228a49;
+  --lumi-sys-color--chart-series-4: #62991b;
+  --lumi-sys-color--chart-series-5: #1e564d;
+  --lumi-sys-color--chart-series-6: #526a45;
+  --lumi-sys-color--chart-series-7: #2780c4;
+  --lumi-sys-color--chart-series-8: #997112;
+  --lumi-sys-color--chart-series-9: #705ec2;
+  --lumi-sys-color--chart-series-10: #c84288;
+}
+
+:root[data-theme="dark"],
+body.dark-mode,
+:root[data-theme="dark"] body {
+  --body-bg: #0f0f0f;
+  --lumi-sys-elevation--level1: 0 0 20px 0 rgba(0, 0, 0, 0.28);
+  --lumi-sys-elevation--level2: 0 0 20px 0 rgba(0, 0, 0, 0.40);
+
+  --lumi-sys-color--surface: #0f0f0f;
+  --lumi-sys-color--surface-dim: #141414;
+  --lumi-sys-color--surface-bright: #1c1c1c;
+  --lumi-sys-color--surface-background: #0f0f0f;
+  --lumi-sys-color--surface-accent: #14204f;
+  --lumi-sys-color--surface-container: #141414;
+  --lumi-sys-color--surface-container-high: #1c1c1c;
+  --lumi-sys-color--surface-translucent: rgba(24, 24, 27, 0.88);
+  --lumi-sys-color--on-surface: #e0e0e0;
+  --lumi-sys-color--on-surface-default: #e0e0e0;
+  --lumi-sys-color--on-surface-variant: rgba(255, 255, 255, 0.55);
+  --lumi-sys-color--on-surface-de-emphasis: rgba(255, 255, 255, 0.55);
+  --lumi-sys-color--on-surface-low: rgba(255, 255, 255, 0.12);
+  --lumi-sys-color--positive: #0ebc5f;
+  --lumi-sys-color--positive-container: #002220;
+  --lumi-sys-color--on-positive-container: #0ebc5f;
+  --lumi-sys-color--error: #ff4c45;
+  --lumi-sys-color--error-container: #3c0202;
+  --lumi-sys-color--on-error-container: #ff4c45;
+  --lumi-sys-color--accent: #1f3b9b;
+  --lumi-sys-color--accent-container: #192967;
+  --lumi-sys-color--accent-fixed: #3186ff;
+  --lumi-sys-color--primary: #9dd2ff;
+  --lumi-sys-color--on-primary: #192967;
+  --lumi-sys-color--black: #000000;
+  --lumi-sys-color--white: #ffffff;
+  --lumi-sys-color--outline: #9a9b9c;
+  --lumi-sys-color--stroke-default: #2d2f38;
+
+  --lumi-sys-color--code-background: #141414;
+  --lumi-sys-color--code-primary-text: #ffffff;
+  --lumi-sys-color--code-blue-text: #4fa0ff;
+  --lumi-sys-color--code-green-text: #60d673;
+  --lumi-sys-color--code-grey-text: #808080;
+  --lumi-sys-color--code-pink-text: #ff96da;
+  --lumi-sys-color--code-purple-text: #969dff;
+  --lumi-sys-color--code-red-text: #ff5a59;
+  --lumi-sys-color--code-yellow-text: #ffdb0f;
+
+  --lumi-sys-color--chart-series-1: #9dd2ff;
+  --lumi-sys-color--chart-series-2: #96a7d6;
+  --lumi-sys-color--chart-series-3: #50e389;
+  --lumi-sys-color--chart-series-4: #c8f585;
+  --lumi-sys-color--chart-series-5: #f5f2e6;
+  --lumi-sys-color--chart-series-6: #dcd8c0;
+  --lumi-sys-color--chart-series-7: #82c7ff;
+  --lumi-sys-color--chart-series-8: #f5d77f;
+  --lumi-sys-color--chart-series-9: #d9ceff;
+  --lumi-sys-color--chart-series-10: #ffa6d7;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --body-bg: #0f0f0f;
+    --lumi-sys-elevation--level1: 0 0 20px 0 rgba(0, 0, 0, 0.28);
+    --lumi-sys-elevation--level2: 0 0 20px 0 rgba(0, 0, 0, 0.40);
+
+    --lumi-sys-color--surface: #0f0f0f;
+    --lumi-sys-color--surface-dim: #141414;
+    --lumi-sys-color--surface-bright: #1c1c1c;
+    --lumi-sys-color--surface-background: #0f0f0f;
+    --lumi-sys-color--surface-accent: #14204f;
+    --lumi-sys-color--surface-container: #141414;
+    --lumi-sys-color--surface-container-high: #1c1c1c;
+    --lumi-sys-color--surface-translucent: rgba(24, 24, 27, 0.88);
+    --lumi-sys-color--on-surface: #e0e0e0;
+    --lumi-sys-color--on-surface-default: #e0e0e0;
+    --lumi-sys-color--on-surface-variant: rgba(255, 255, 255, 0.55);
+    --lumi-sys-color--on-surface-de-emphasis: rgba(255, 255, 255, 0.55);
+    --lumi-sys-color--on-surface-low: rgba(255, 255, 255, 0.12);
+    --lumi-sys-color--positive: #0ebc5f;
+    --lumi-sys-color--positive-container: #002220;
+    --lumi-sys-color--on-positive-container: #0ebc5f;
+    --lumi-sys-color--error: #ff4c45;
+    --lumi-sys-color--error-container: #3c0202;
+    --lumi-sys-color--on-error-container: #ff4c45;
+    --lumi-sys-color--accent: #1f3b9b;
+    --lumi-sys-color--accent-container: #192967;
+    --lumi-sys-color--accent-fixed: #3186ff;
+    --lumi-sys-color--primary: #9dd2ff;
+    --lumi-sys-color--on-primary: #192967;
+    --lumi-sys-color--black: #000000;
+    --lumi-sys-color--white: #ffffff;
+    --lumi-sys-color--outline: #9a9b9c;
+    --lumi-sys-color--stroke-default: #2d2f38;
+
+    --lumi-sys-color--code-background: #141414;
+    --lumi-sys-color--code-primary-text: #ffffff;
+    --lumi-sys-color--code-blue-text: #4fa0ff;
+    --lumi-sys-color--code-green-text: #60d673;
+    --lumi-sys-color--code-grey-text: #808080;
+    --lumi-sys-color--code-pink-text: #ff96da;
+    --lumi-sys-color--code-purple-text: #969dff;
+    --lumi-sys-color--code-red-text: #ff5a59;
+    --lumi-sys-color--code-yellow-text: #ffdb0f;
+
+    --lumi-sys-color--chart-series-1: #9dd2ff;
+    --lumi-sys-color--chart-series-2: #96a7d6;
+    --lumi-sys-color--chart-series-3: #50e389;
+    --lumi-sys-color--chart-series-4: #c8f585;
+    --lumi-sys-color--chart-series-5: #f5f2e6;
+    --lumi-sys-color--chart-series-6: #dcd8c0;
+    --lumi-sys-color--chart-series-7: #82c7ff;
+    --lumi-sys-color--chart-series-8: #f5d77f;
+    --lumi-sys-color--chart-series-9: #d9ceff;
+    --lumi-sys-color--chart-series-10: #ffa6d7;
+  }
+}
+
+:root {
+  --surface: var(--lumi-sys-color--surface, #fdfcfc);
+  --surface-dim: var(--lumi-sys-color--surface-dim, #f2f0f0);
+  --surface-bright: var(--lumi-sys-color--surface-bright, #ffffff);
+  --surface-container: var(--lumi-sys-color--surface-container, #f2f0f0);
+  --surface-container-high: var(--lumi-sys-color--surface-container-high, #e6e6e6);
+  --surface-container-lowest: var(--lumi-sys-color--surface, #ffffff);
+  --surface-accent: var(--lumi-sys-color--surface-accent, #9dd2ff);
+  --surface-translucent: var(--lumi-sys-color--surface-translucent, rgba(255, 255, 255, 0.88));
+  --surface-glass: var(--lumi-sys-color--surface-translucent, rgba(255, 255, 255, 0.88));
+  --on-surface: var(--lumi-sys-color--on-surface, #000000);
+  --on-surface-variant: var(--lumi-sys-color--on-surface-variant, rgba(0, 0, 0, 0.55));
+  --on-surface-low: var(--lumi-sys-color--on-surface-low, rgba(0, 0, 0, 0.08));
+  --primary: var(--lumi-sys-color--primary, #3186ff);
+  --primary-container: var(--lumi-sys-color--accent-container, #dcf1ff);
+  --accent: var(--lumi-sys-color--accent, #9dd2ff);
+  --accent-container: var(--lumi-sys-color--accent-container, #dcf1ff);
+  --accent-fixed: var(--lumi-sys-color--accent-fixed, #3186ff);
+  --positive: var(--lumi-sys-color--positive, #008052);
+  --positive-container: var(--lumi-sys-color--positive-container, #daf9d4);
+  --error: var(--lumi-sys-color--error, #de2d29);
+  --error-container: var(--lumi-sys-color--error-container, #ffdeec);
+  --outline: var(--lumi-sys-color--outline, #727676);
+  --stroke-default: var(--lumi-sys-color--stroke-default, #e3e3e3);
+  --chart-1: var(--lumi-sys-color--chart-series-1, #2575fc);
+  --chart-2: var(--lumi-sys-color--chart-series-2, #5b6e9e);
+  --chart-3: var(--lumi-sys-color--chart-series-3, #228a49);
+  --chart-4: var(--lumi-sys-color--chart-series-4, #62991b);
+  --chart-5: var(--lumi-sys-color--chart-series-5, #1e564d);
+  --chart-6: var(--lumi-sys-color--chart-series-6, #526a45);
+  --chart-7: var(--lumi-sys-color--chart-series-7, #2780c4);
+  --chart-8: var(--lumi-sys-color--chart-series-8, #997112);
+  --chart-9: var(--lumi-sys-color--chart-series-9, #705ec2);
+  --chart-10: var(--lumi-sys-color--chart-series-10, #c84288);
+  --code-background: var(--lumi-sys-color--code-background, #000000);
+  --code-primary-text: var(--lumi-sys-color--code-primary-text, #ffffff);
+  --spacing-xs: var(--lumi-sys-spacing--xs, 4px);
+  --spacing-s: var(--lumi-sys-spacing--s, 8px);
+  --spacing-m: var(--lumi-sys-spacing--m, 12px);
+  --spacing-l: var(--lumi-sys-spacing--l, 16px);
+  --spacing-xl: var(--lumi-sys-spacing--xl, 20px);
+  --r-s: var(--lumi-sys-shape--small, 8px);
+  --r-m: var(--lumi-sys-shape--medium, 12px);
+  --r-l: var(--lumi-sys-shape--large, 16px);
+  --r-full: var(--lumi-sys-shape--full, 999px);
+}
+
+html, body {
+  background: var(--body-bg, transparent) !important;
+  color: var(--on-surface) !important;
+  overflow-y: hidden;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  font-optical-sizing: auto;
+  text-rendering: optimizeLegibility;
+}
+
+.widget-container {
+  width: 100% !important;
+  max-width: 100% !important;
+  padding-inline: 0 !important;
+  box-sizing: border-box;
+}
+
+:root { --lumi-scrollbar-thumb: rgba(0, 0, 0, 0.20); }
+:root[data-theme="dark"], body.dark-mode { --lumi-scrollbar-thumb: rgba(255, 255, 255, 0.20); }
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) { --lumi-scrollbar-thumb: rgba(255, 255, 255, 0.20); }
+}
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--lumi-scrollbar-thumb) transparent;
+}
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb {
+  background-color: var(--lumi-scrollbar-thumb);
+  border-radius: var(--lumi-sys-shape--full, 999px);
+}
+
+button {
+  appearance: none;
+  -webkit-appearance: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--lumi-sys-spacing--xs, 6px);
+  min-height: 36px;
+  padding: 6px 16px;
+  font-family: var(--ff-sans, 'Google Sans Flex', 'Google Sans', sans-serif);
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 18px;
+  color: var(--on-surface, #000000);
+  background-color: var(--surface-bright, #ffffff);
+  border: 1px solid var(--stroke-default, #e3e3e3);
+  border-radius: var(--lumi-sys-shape--full, 999px);
+  cursor: pointer;
+  user-select: none;
+  box-sizing: border-box;
+  transition: background-color 0.15s, color 0.15s, border-color 0.15s;
+}
+button:hover {
+  background-color: var(--surface-container-high, #e6e6e6);
+}
+button.active, button.is-active, button.selected, button.is-selected, button[aria-pressed="true"], button[aria-selected="true"] {
+  background-color: var(--accent-container, #dcf1ff);
+  color: var(--accent-fixed, #3186ff);
+  border-color: transparent;
+}
+
+.lumi-btn, [class^="lumi-btn-"], [class*=" lumi-btn-"] { display: inline-flex; align-items: center; justify-content: center; gap: var(--lumi-sys-spacing--s, 8px); min-height: 40px; padding: 0px 20px; font-family: var(--ff-sans, 'Google Sans Flex', 'Google Sans', sans-serif); font-size: 14px; font-weight: 500; line-height: 20px; border-radius: var(--lumi-sys-shape--full, 999px); border: 1px solid var(--lumi-sys-color--stroke-default, #e3e3e3); cursor: pointer; user-select: none; transition: background-color 0.15s, color 0.15s, border-color 0.15s, box-shadow 0.15s, transform 0.1s; text-decoration: none; box-sizing: border-box; white-space: nowrap; }
+.lumi-btn:active, .lumi-btn.is-pressed, [class^="lumi-btn-"]:active, [class*=" lumi-btn-"]:active { transform: scale(0.98); }
+.lumi-btn--tonal, .lumi-btn-tonal, .lumi-btn--secondary, .lumi-btn-secondary, [class^="lumi-btn-"], [class*=" lumi-btn-"] { background-color: var(--lumi-sys-color--surface-bright, #ffffff); color: var(--lumi-sys-color--on-surface-default, #000000); }
+.lumi-btn--tonal:hover, .lumi-btn-tonal:hover, .lumi-btn--secondary:hover, .lumi-btn-secondary:hover, [class^="lumi-btn-"]:hover, [class*=" lumi-btn-"]:hover { background-color: var(--lumi-sys-color--surface-container-high, #e6e6e6); }
+.lumi-btn--accent, .lumi-btn-accent, .lumi-btn--primary, .lumi-btn-primary { background-color: var(--lumi-sys-color--accent, #9dd2ff); color: var(--lumi-sys-color--on-surface-default, #000000); border-color: transparent; }
+.lumi-btn--accent:hover, .lumi-btn-accent:hover, .lumi-btn--primary:hover, .lumi-btn-primary:hover { background-color: var(--lumi-sys-color--accent-container, #dcf1ff); }
+.lumi-btn--small, .lumi-btn-small { min-height: 36px; padding: 0px 16px; font-size: 13px; line-height: 18px; gap: var(--lumi-sys-spacing--xs, 4px); }
+.lumi-btn.is-selected, .lumi-btn.selected, .lumi-btn.is-active, .lumi-btn.active, .lumi-btn[aria-pressed="true"], .lumi-btn[aria-selected="true"] { background-color: var(--lumi-sys-color--accent-container, #dcf1ff); color: var(--lumi-sys-color--on-surface-default, #000000); border-color: transparent; }
+
+.lumi-headline-m { font-family: var(--ff-sans, 'Google Sans Flex', sans-serif); font-size: 24px; line-height: 28px; font-weight: 380; font-variation-settings: "wght" 380, "wdth" 100, "opsz" 24, "ROND" 20; }
+.lumi-body-m { font-family: var(--ff-sans, 'Google Sans Flex', sans-serif); font-size: 15px; line-height: 20px; font-weight: 400; font-variation-settings: "wght" 400, "wdth" 92, "opsz" 15; }
+.lumi-body-s { font-family: var(--ff-sans, 'Google Sans Flex', sans-serif); font-size: 13px; line-height: 17px; font-weight: 400; font-variation-settings: "wght" 400, "wdth" 92, "opsz" 13; }
+.lumi-caption { font-family: var(--ff-mono, 'Google Sans Code', monospace); font-style: italic; font-size: 13px; line-height: 20px; font-weight: 400; font-variation-settings: "wght" 400, "opsz" 13, "MONO" 0; }
+
+svg text { stroke: none; paint-order: fill; }
+</style>
+
+<style id="lumi-surface-button-fallbacks">
+.widget-container {
+  width: 100% !important;
+  max-width: 100% !important;
+  padding-inline: 0 !important;
+  box-sizing: border-box;
+}
+:root {
+  --lumi-sys-color--surface-translucent: rgba(255, 255, 255, 0.88);
+  --surface-translucent: var(--lumi-sys-color--surface-translucent, rgba(255, 255, 255, 0.88));
+  --surface-glass: var(--lumi-sys-color--surface-translucent, rgba(255, 255, 255, 0.88));
+}
+:root[data-theme="dark"], body.dark-mode {
+  --lumi-sys-color--surface-translucent: rgba(24, 24, 27, 0.88);
+  --surface-translucent: rgba(24, 24, 27, 0.88);
+  --surface-glass: rgba(24, 24, 27, 0.88);
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --lumi-sys-color--surface-translucent: rgba(24, 24, 27, 0.88);
+    --surface-translucent: rgba(24, 24, 27, 0.88);
+    --surface-glass: rgba(24, 24, 27, 0.88);
+  }
+}
+button {
+  appearance: none;
+  -webkit-appearance: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 36px;
+  padding: 8px 18px;
+  font-family: var(--ff-sans, 'Google Sans Flex', sans-serif);
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 18px;
+  color: var(--on-surface, #000000);
+  background-color: var(--lumi-sys-color--surface-bright, #ffffff);
+  border: 1px solid var(--stroke-default, #e3e3e3);
+  border-radius: 999px;
+  cursor: pointer;
+  box-sizing: border-box;
+}
+button:hover {
+  background-color: var(--surface-container-high, #e6e6e6);
+}
+button.active, button.is-active, button.selected, button.is-selected, button[aria-pressed="true"], button[aria-selected="true"] {
+  background-color: var(--accent-container, #dcf1ff);
+  color: var(--accent-fixed, #3186ff);
+  border-color: transparent;
+}
+.lumi-btn, [class^="lumi-btn-"], [class*=" lumi-btn-"] {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 38px;
+  padding: 8px 18px;
+  background-color: var(--lumi-sys-color--surface-bright, #ffffff);
+  color: var(--on-surface, #000000);
+  border: 1px solid var(--stroke-default, #e3e3e3);
+  border-radius: 999px;
+  box-sizing: border-box;
+}
+.lumi-btn--primary, .lumi-btn-primary {
+  background-color: var(--lumi-sys-color--accent, #9dd2ff);
+  color: var(--lumi-sys-color--on-surface-default, #000000);
+  border-color: transparent;
+}
+.lumi-btn--primary:hover, .lumi-btn-primary:hover {
+  background-color: var(--lumi-sys-color--accent-container, #dcf1ff);
+}
+</style>
+
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>大气热力环流微观分子模型 · 交互式拖动</title>
+  <style>
+    .widget-container {
+      width: 100%;
+      min-height: 280px;
+      padding-inline: 0;
+      overflow-x: hidden;
+      box-sizing: border-box;
+      display: flex;
+      flex-direction: column;
+      gap: var(--lumi-sys-spacing--m, 12px);
+      font-family: var(--ff-sans, 'Google Sans Flex', sans-serif);
+      color: var(--on-surface, #000000);
+    }
+
+    .widget-header {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      padding-horizontal: var(--lumi-sys-spacing--s, 8px);
+    }
+
+    .widget-title-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: var(--lumi-sys-spacing--m, 12px);
+    }
+
+    .widget-title {
+      margin: 0;
+      color: var(--on-surface, #000000);
+    }
+
+    .widget-subtitle {
+      margin: 0;
+      color: var(--on-surface-variant, rgba(0, 0, 0, 0.55));
+    }
+
+    .status-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 4px 10px;
+      border-radius: var(--r-full, 999px);
+      background: var(--surface-container, #f2f0f0);
+      font-family: var(--ff-mono, 'Google Sans Code', monospace);
+      font-size: 12px;
+      color: var(--on-surface-variant, rgba(0, 0, 0, 0.7));
+      white-space: nowrap;
+    }
+
+    .status-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--primary, #3186ff);
+      box-shadow: 0 0 6px var(--primary, #3186ff);
+    }
+
+    .viewport-card {
+      position: relative;
+      width: 100%;
+      height: 480px;
+      background: var(--surface-dim, #f2f0f0);
+      border-radius: var(--r-m, 12px);
+      overflow: hidden;
+      border: 1px solid var(--stroke-default, #e3e3e3);
+      box-sizing: border-box;
+    }
+
+    .canvas-container {
+      position: relative;
+      width: 100%;
+      height: 100%;
+      min-height: 0;
+      overflow: hidden;
+      cursor: grab;
+    }
+
+    #physicsCanvas {
+      display: block;
+      width: 100%;
+      height: 100%;
+      touch-action: none;
+      user-select: none;
+      -webkit-user-select: none;
+    }
+
+    .drag-hint {
+      position: absolute;
+      left: 50%;
+      bottom: 10px;
+      transform: translateX(-50%);
+      background: var(--surface-translucent, rgba(255, 255, 255, 0.9));
+      backdrop-filter: blur(8px);
+      -webkit-backdrop-filter: blur(8px);
+      border: 1px solid var(--stroke-default, #e3e3e3);
+      border-radius: var(--r-full, 999px);
+      padding: 6px 14px;
+      font-size: 12px;
+      color: var(--on-surface-variant, rgba(0,0,0,0.65));
+      pointer-events: none;
+      z-index: 20;
+      transition: opacity 0.4s ease;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      white-space: nowrap;
+    }
+    .drag-hint.hidden { opacity: 0; }
+
+    .drag-hint-icon {
+      display: inline-block;
+      width: 14px;
+      height: 14px;
+      border-radius: 50%;
+      background: var(--chart-10, #c84288);
+      box-shadow: 0 0 0 2px rgba(200, 66, 136, 0.25);
+    }
+
+    .drag-counter {
+      position: absolute;
+      top: 10px;
+      left: 10px;
+      background: var(--surface-translucent, rgba(255, 255, 255, 0.9));
+      backdrop-filter: blur(8px);
+      -webkit-backdrop-filter: blur(8px);
+      border: 1px solid var(--stroke-default, #e3e3e3);
+      border-radius: var(--r-s, 8px);
+      padding: 4px 10px;
+      font-size: 11px;
+      font-family: var(--ff-mono, monospace);
+      color: var(--on-surface-variant, rgba(0,0,0,0.65));
+      pointer-events: none;
+      z-index: 20;
+      display: none;
+    }
+    .drag-counter.visible { display: block; }
+
+    .control-deck {
+      display: flex;
+      flex-direction: column;
+      gap: var(--lumi-sys-spacing--m, 12px);
+      padding: var(--lumi-sys-spacing--m, 12px);
+      background: var(--surface-container, #f2f0f0);
+      border-radius: var(--r-m, 12px);
+      border: 1px solid var(--stroke-default, #e3e3e3);
+    }
+
+    .stage-segmented-nav {
+      display: flex;
+      width: 100%;
+      gap: 4px;
+      background: var(--surface-dim, #e6e6e6);
+      padding: 3px;
+      border-radius: var(--r-full, 999px);
+      overflow-x: auto;
+    }
+
+    .stage-btn {
+      flex: 1;
+      min-width: 75px;
+      padding: 6px 10px;
+      border: none;
+      background: transparent;
+      border-radius: var(--r-full, 999px);
+      font-size: 13px;
+      font-family: var(--ff-sans, sans-serif);
+      color: var(--on-surface-variant, rgba(0, 0, 0, 0.65));
+      cursor: pointer;
+      white-space: nowrap;
+      text-align: center;
+      transition: all 0.2s ease;
+    }
+
+    .stage-btn:hover {
+      color: var(--on-surface, #000);
+    }
+
+    .stage-btn.is-active {
+      background: var(--surface-bright, #ffffff);
+      color: var(--accent-fixed, #3186ff);
+      font-weight: 600;
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+    }
+
+    .action-toolbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: var(--lumi-sys-spacing--m, 12px);
+      flex-wrap: wrap;
+    }
+
+    .btn-group {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .speed-control {
+      background: var(--surface-container, #f2f0f0);
+      border: 1px solid var(--stroke-default, #e3e3e3);
+      border-radius: var(--r-full, 999px);
+      padding: 3px 4px;
+    }
+    .speed-caption {
+      font-size: 12px;
+      color: var(--on-surface-variant, rgba(0, 0, 0, 0.6));
+      padding: 0 6px 0 8px;
+      white-space: nowrap;
+    }
+    .speed-step-btn {
+      min-height: 30px;
+      min-width: 30px;
+      width: 30px;
+      padding: 0;
+      font-size: 16px;
+      line-height: 1;
+    }
+    .speed-step-btn:disabled {
+      opacity: 0.35;
+      cursor: default;
+    }
+    .speed-value {
+      min-width: 40px;
+      text-align: center;
+      font-family: var(--ff-mono, 'Google Sans Code', monospace);
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--accent-fixed, #3186ff);
+      cursor: pointer;
+      user-select: none;
+      white-space: nowrap;
+    }
+
+    .toggle-chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 6px 12px;
+      border-radius: var(--r-full, 999px);
+      background: var(--surface-dim, #e6e6e6);
+      font-size: 12px;
+      color: var(--on-surface-variant, rgba(0,0,0,0.7));
+      cursor: pointer;
+      user-select: none;
+      transition: all 0.2s ease;
+    }
+
+    .toggle-chip.is-active {
+      background: var(--accent-container, #dcf1ff);
+      color: var(--accent-fixed, #3186ff);
+      font-weight: 500;
+    }
+
+    .stage-info-card {
+      padding: var(--lumi-sys-spacing--m, 12px);
+      background: var(--surface-bright, #ffffff);
+      border-radius: var(--r-m, 12px);
+      border: 1px solid var(--stroke-default, #e3e3e3);
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .stage-info-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .stage-info-title {
+      font-weight: 600;
+      color: var(--on-surface, #000);
+      margin: 0;
+    }
+
+    .stage-info-desc {
+      margin: 0;
+      color: var(--on-surface-variant, rgba(0, 0, 0, 0.65));
+      line-height: 1.45;
+    }
+
+    .legend-bar {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 16px;
+      padding-top: 4px;
+      flex-wrap: wrap;
+    }
+
+    .legend-item {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 12px;
+      color: var(--on-surface-variant, rgba(0,0,0,0.65));
+    }
+
+    .legend-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+    }
+  </style>
+<script id="lumi-os-theme-init">
+(function() {
+  function syncBody() {
+    var dt = document.documentElement.getAttribute('data-theme');
+    if (document.body && (dt === 'dark' || dt === 'light')) {
+      document.body.classList.toggle('dark-mode', dt === 'dark');
+    }
+  }
+  function syncTheme(theme) {
+    if (theme !== 'dark' && theme !== 'light') return;
+    document.documentElement.setAttribute('data-theme', theme);
+    syncBody();
+  }
+  if (typeof MutationObserver === 'function') {
+    new MutationObserver(syncBody).observe(document.documentElement, {
+      attributes: true, attributeFilter: ['data-theme']
+    });
+  }
+  if (typeof document.addEventListener === 'function') {
+    document.addEventListener('DOMContentLoaded', syncBody);
+  }
+  try {
+    var mq = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)');
+    if (mq) {
+      var cur = document.documentElement.getAttribute('data-theme');
+      if (!cur) {
+        syncTheme(mq.matches ? 'dark' : 'light');
+      } else {
+        syncTheme(cur);
+      }
+      if (mq.addEventListener) {
+        mq.addEventListener('change', function(e) {
+          syncTheme(e.matches ? 'dark' : 'light');
+        });
+      }
+    }
+  } catch (e) {}
+  window.addEventListener('message', function(e) {
+    if (e.data && (e.data.type === 'set-theme' || e.data.type === 'APPLY_THEME') && e.data.theme) {
+      syncTheme(e.data.theme);
+    }
+  });
+})();
+</script>
+</head>
+<body>
+  <div class="widget-container">
+    <div class="widget-header">
+      <div class="widget-title-row">
+        <h2 class="widget-title lumi-headline-m">高密度空气分子热力环流演示 · 可拖动</h2>
+        <div class="status-badge">
+          <span class="status-dot" id="statusDot"></span>
+          <span id="statusText">阶段 0: 初始平衡</span>
+        </div>
+      </div>
+      <p class="widget-subtitle lumi-body-s">🖐 按住并拖动会连带周围一片分子一起移动，观察它们如何推开邻近分子重新排布</p>
+    </div>
+
+    <div class="viewport-card">
+      <div class="canvas-container" id="canvasContainer">
+        <canvas id="physicsCanvas"></canvas>
+
+        <div class="drag-hint" id="dragHint">
+          <span class="drag-hint-icon"></span>
+          <span>按住并拖动，会连带周围一片分子一起移动</span>
+        </div>
+
+        <div class="drag-counter" id="dragCounter">拖动中…</div>
+      </div>
+    </div>
+
+    <div class="control-deck">
+      <div class="stage-segmented-nav" id="stageNav">
+        <button class="stage-btn is-active" data-stage="0">0: 均一平衡</button>
+        <button class="stage-btn" data-stage="1">1: 受热垂直流</button>
+        <button class="stage-btn" data-stage="2">2: 高空扩散</button>
+        <button class="stage-btn" data-stage="3">3: 近地面补充</button>
+        <button class="stage-btn" data-stage="4">4: 受热上升循环</button>
+      </div>
+
+      <div class="action-toolbar">
+        <div class="btn-group">
+          <button class="lumi-btn lumi-btn--accent lumi-btn--small" id="playBtn">暂停</button>
+          <button class="lumi-btn lumi-btn--tonal lumi-btn--small" id="resetBtn">重置</button>
+          <button class="lumi-btn lumi-btn--tonal lumi-btn--small" id="freeBtn">自由拖动模式</button>
+        </div>
+
+        <div class="btn-group speed-control">
+          <span class="speed-caption">分子速度</span>
+          <button class="lumi-btn lumi-btn--tonal lumi-btn--small speed-step-btn" id="slowBtn" aria-label="减慢分子速度">−</button>
+          <span class="speed-value" id="speedValue" title="点击恢复 1×">1×</span>
+          <button class="lumi-btn lumi-btn--tonal lumi-btn--small speed-step-btn" id="fastBtn" aria-label="加快分子速度">+</button>
+        </div>
+
+        <div class="btn-group">
+          <button class="lumi-btn lumi-btn--tonal lumi-btn--small" id="penBtn">画笔模式</button>
+          <button class="lumi-btn lumi-btn--tonal lumi-btn--small" id="clearNotesBtn">清除笔记</button>
+        </div>
+
+        <div class="btn-group">
+          <div class="toggle-chip is-active" id="particleToggle">
+            <span class="legend-dot" style="background: var(--chart-1, #2575fc);"></span>
+            <span id="toggleText">显现: 全部微粒</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="stage-info-card">
+      <div class="stage-info-header">
+        <h3 class="stage-info-title lumi-body-m" id="infoTitle">阶段 0: 均一静态平衡</h3>
+        <span class="lumi-caption" id="infoProgress">等压面: 平直无弯曲</span>
+      </div>
+      <p class="stage-info-desc lumi-body-s" id="infoDesc">
+        全气柱受热均匀，分子密度由近地面向高空递减（垂直静空平衡），近地面与 2/3 高度处的等压面均保持平直。无空气流动。
+      </p>
+
+      <div class="legend-bar">
+        <div class="legend-item">
+          <span class="legend-dot" style="background: var(--chart-10, #c84288);"></span>
+          <span>受热上升气流 (A区)</span>
+        </div>
+        <div class="legend-item">
+          <span class="legend-dot" style="background: var(--chart-7, #2780c4);"></span>
+          <span>冷却下沉气流 (B/C区)</span>
+        </div>
+        <div class="legend-item">
+          <span class="legend-dot" style="background: var(--chart-1, #2575fc); opacity: 0.5;"></span>
+          <span>基底连续微粒</span>
+        </div>
+        <div class="legend-item">
+          <span class="legend-dot" style="background: var(--chart-8, #997112);"></span>
+          <span>等压面</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // ================================================================
+    // 状态
+    // ================================================================
+    const state = {
+      stage: 0,
+      isPlaying: true,
+      showAllParticles: true,
+      freeMode: false,
+      speed: 1,
+      penMode: false,
+      hoverRegion: null,
+      mouseX: -1,
+      mouseY: -1
+    };
+
+    const dragState = {
+      particles: [],
+      offsets: [],
+      isDragging: false,
+      isDrawing: false,
+      currentStroke: null,
+      hoverTarget: null
+    };
+
+    const STAGE_META = [
+      {
+        title: "阶段 0: 均一静态平衡",
+        progress: "等压面: 平直无弯曲",
+        desc: "地面受热均匀，全气柱空气分子密度分布一致（受重力梯度衰减）。近地面与 2/3 高度等压面均为平直水平线。"
+      },
+      {
+        title: "阶段 1: 垂直膨胀与下沉 (冷热不均)",
+        progress: "A上升 / B、C下沉",
+        desc: "A区近地面受热，低层动态分子受热膨胀向上聚集至高空等压线附近；B、C受冷缩紧下沉至近地面。"
+      },
+      {
+        title: "阶段 2: 2/3 高空水平扩散与等压面形变",
+        progress: "高空: A → B, C",
+        desc: "高空等压线附近，A 区聚集的多余分子向两侧 B、C 区水平扩散。高空等压面发生形变：A区上凸（高压），B、C区下凹（低压）。"
+      },
+      {
+        title: "阶段 3: 近地面流向补充与地面等压面反向形变",
+        progress: "近地面: B, C → A（高空静止）",
+        desc: "近地面 B、C 区高压分子向 A 区低压区流向补充；高空分子聚集区保持在等压线附近不发生水平运动。"
+      },
+      {
+        title: "阶段 4: 空气受热上升并进入循环",
+        progress: "A区受热上升 → 闭合环流形成",
+        desc: "补充到 A 区近地面的空气受热上升，形成稳定的闭合热力环流圈：A受热上升 → 高空扩散至B/C → B/C冷却下沉 → 近地面流回A → 再次受热上升。"
+      }
+    ];
+
+    const canvas = document.getElementById('physicsCanvas');
+    const ctx = canvas.getContext('2d');
+    const container = document.getElementById('canvasContainer');
+    const dragHint = document.getElementById('dragHint');
+    const dragCounter = document.getElementById('dragCounter');
+
+    function getCssVar(name) {
+      if (!name) return '';
+      const clean = name.replace(/^var\(/, '').replace(/\)$/, '').trim();
+      return getComputedStyle(document.documentElement).getPropertyValue(clean.startsWith('--') ? clean : '--' + clean).trim();
+    }
+
+    const STATIC_COUNT = 360;
+    const DYNAMIC_COUNT = 380;
+
+    let particles = [];
+    let strokes = [];
+
+    const SEP_CELL = 8;
+    const SEP_GAP = 0.8;
+    const SEP_RELAX = 0.85;
+    let sepBuckets = [];
+    let sepCols = 0, sepRows = 0;
+
+    let w = 600, h = 480;
+
+    const Y23 = 0.34;
+    const Y_GROUND = 0.88;
+    const Y_HIGH_BOUNDARY = 0.46;
+
+    const COL_B_X0 = 0.11, COL_B_X1 = 0.33;
+    const COL_A_X0 = 0.39, COL_A_X1 = 0.61;
+    const COL_C_X0 = 0.67, COL_C_X1 = 0.89;
+    const COL_WIDTH = COL_A_X1 - COL_A_X0;
+
+    const P_B_X0 = 0.13, P_B_X1 = 0.31;
+    const P_A_X0 = 0.41, P_A_X1 = 0.59;
+    const P_C_X0 = 0.69, P_C_X1 = 0.87;
+
+    function initParticles() {
+      particles = [];
+
+      for (let i = 0; i < STATIC_COUNT; i++) {
+        const col = i % 3;
+        let minX, maxX;
+        if (col === 0) { minX = COL_B_X0 + 0.005; maxX = COL_B_X1 - 0.005; }
+        else if (col === 1) { minX = COL_A_X0 + 0.005; maxX = COL_A_X1 - 0.005; }
+        else { minX = COL_C_X0 + 0.005; maxX = COL_C_X1 - 0.005; }
+
+        particles.push({
+          isStatic: true,
+          col: col === 1 ? 'A' : (col === 0 ? 'B' : 'C'),
+          origCol: col === 1 ? 'A' : (col === 0 ? 'B' : 'C'),
+          relX: minX + Math.random() * (maxX - minX),
+          relY: 0.06 + Math.pow(Math.random(), 0.8) * 0.84,
+          vx: 0, vy: 0,
+          radius: 1.6 + Math.random() * 0.8,
+          minX: minX,
+          maxX: maxX
+        });
+      }
+
+      for (let i = 0; i < DYNAMIC_COUNT; i++) {
+        const colIdx = i % 3;
+        const col = colIdx === 1 ? 'A' : (colIdx === 0 ? 'B' : 'C');
+        let minX, maxX;
+        if (col === 'B') { minX = P_B_X0; maxX = P_B_X1; }
+        else if (col === 'A') { minX = P_A_X0; maxX = P_A_X1; }
+        else { minX = P_C_X0; maxX = P_C_X1; }
+
+        const relY = 0.32 + Math.random() * 0.56;
+        const relX = minX + Math.random() * (maxX - minX);
+
+        particles.push({
+          isStatic: false,
+          col: col,
+          origCol: col,
+          relX: relX,
+          relY: relY,
+          initRelX: relX,
+          initRelY: relY,
+          vx: 0, vy: 0,
+          radius: 2.2 + Math.random() * 0.6,
+          seedX: Math.random(),
+          seedY: Math.random(),
+          loopT: 0,
+          loopSide: Math.random() < 0.5 ? -1 : 1,
+          loopOffX: (Math.random() - 0.5) * 0.08,
+          loopOffY: (Math.random() - 0.5) * 0.05
+        });
+      }
+
+      for (let k = 0; k < 30; k++) separateParticles();
+      clampParticles();
+    }
+
+    function resizeCanvas() {
+      const dpr = Math.min(window.devicePixelRatio || 1, 2);
+      w = container.clientWidth || 600;
+      h = container.clientHeight || 480;
+
+      if (canvas.width !== Math.floor(w * dpr) || canvas.height !== Math.floor(h * dpr)) {
+        canvas.width = Math.floor(w * dpr);
+        canvas.height = Math.floor(h * dpr);
+      }
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    }
+
+    function separateParticles() {
+      const cols = Math.ceil(w / SEP_CELL) + 1;
+      const rows = Math.ceil(h / SEP_CELL) + 1;
+
+      if (cols !== sepCols || rows !== sepRows) {
+        sepCols = cols; sepRows = rows;
+        sepBuckets = new Array(cols * rows);
+        for (let i = 0; i < sepBuckets.length; i++) sepBuckets[i] = [];
+      } else {
+        for (let i = 0; i < sepBuckets.length; i++) {
+          if (sepBuckets[i].length) sepBuckets[i].length = 0;
+        }
+      }
+
+      const n = particles.length;
+
+      for (let i = 0; i < n; i++) {
+        const p = particles[i];
+        let cx = Math.floor(p.relX * w / SEP_CELL);
+        let cy = Math.floor(p.relY * h / SEP_CELL);
+        if (cx < 0) cx = 0; else if (cx >= cols) cx = cols - 1;
+        if (cy < 0) cy = 0; else if (cy >= rows) cy = rows - 1;
+        p._cx = cx; p._cy = cy;
+        sepBuckets[cy * cols + cx].push(i);
+      }
+
+      for (let i = 0; i < n; i++) {
+        const pi = particles[i];
+        const cx = pi._cx, cy = pi._cy;
+
+        for (let oy = -1; oy <= 1; oy++) {
+          const ny = cy + oy;
+          if (ny < 0 || ny >= rows) continue;
+          const rowBase = ny * cols;
+
+          for (let ox = -1; ox <= 1; ox++) {
+            const nx = cx + ox;
+            if (nx < 0 || nx >= cols) continue;
+
+            const bucket = sepBuckets[rowBase + nx];
+            const bl = bucket.length;
+
+            for (let k = 0; k < bl; k++) {
+              const j = bucket[k];
+              if (j <= i) continue;
+              const pj = particles[j];
+
+              let dx = (pj.relX - pi.relX) * w;
+              let dy = (pj.relY - pi.relY) * h;
+
+              const minD = pi.radius + pj.radius + SEP_GAP;
+              const d2 = dx * dx + dy * dy;
+              if (d2 >= minD * minD) continue;
+
+              let d = Math.sqrt(d2);
+              if (d < 1e-4) {
+                const a = Math.random() * Math.PI * 2;
+                dx = Math.cos(a); dy = Math.sin(a); d = 1;
+              }
+
+              const overlap = minD - d;
+              const ux = dx / d;
+              const uy = dy / d;
+
+              const piDragged = !!pi.isDragged;
+              const pjDragged = !!pj.isDragged;
+
+              if (piDragged && pjDragged) continue;
+
+              if (piDragged) {
+                pj.relX += ux * overlap * SEP_RELAX / w;
+                pj.relY += uy * overlap * SEP_RELAX / h;
+              } else if (pjDragged) {
+                pi.relX -= ux * overlap * SEP_RELAX / w;
+                pi.relY -= uy * overlap * SEP_RELAX / h;
+              } else {
+                const push = overlap * 0.5 * SEP_RELAX;
+                pi.relX -= ux * push / w;
+                pi.relY -= uy * push / h;
+                pj.relX += ux * push / w;
+                pj.relY += uy * push / h;
+              }
+            }
+          }
+        }
+      }
+    }
+
+    function clampParticles() {
+      for (let i = 0; i < particles.length; i++) {
+        const p = particles[i];
+        if (p.isStatic) {
+          if (p.relX < p.minX) p.relX = p.minX;
+          else if (p.relX > p.maxX) p.relX = p.maxX;
+          if (p.relY < 0.04) p.relY = 0.04;
+          else if (p.relY > 0.92) p.relY = 0.92;
+        } else {
+          if (p.isDragged) continue;
+          if (p.relX < 0.05) p.relX = 0.05;
+          else if (p.relX > 0.95) p.relX = 0.95;
+          if (p.relY < 0.04) p.relY = 0.04;
+          else if (p.relY > 0.88) p.relY = 0.88;
+        }
+      }
+    }
+
+    function loopPosition(p, t) {
+      const side = p.loopSide;
+      const sideX = 0.5 + side * 0.28;
+      const topY = 0.32 + p.loopOffY;
+      const botY = 0.84 + p.loopOffY;
+      const midX = 0.5 + p.loopOffX;
+
+      if (t < 0.25) {
+        const k = t / 0.25;
+        return {
+          x: midX + Math.sin(k * Math.PI) * 0.02 * side,
+          y: botY + (topY - botY) * k
+        };
+      } else if (t < 0.5) {
+        const k = (t - 0.25) / 0.25;
+        return {
+          x: midX + (sideX - midX) * k,
+          y: topY + Math.sin(k * Math.PI) * (-0.015)
+        };
+      } else if (t < 0.75) {
+        const k = (t - 0.5) / 0.25;
+        return {
+          x: sideX + Math.sin(k * Math.PI) * 0.02 * (-side),
+          y: topY + (botY - topY) * k
+        };
+      } else {
+        const k = (t - 0.75) / 0.25;
+        return {
+          x: sideX + (midX - sideX) * k,
+          y: botY + Math.sin(k * Math.PI) * 0.015
+        };
+      }
+    }
+
+    // ================================================================
+    // ★ 进入阶段 4 时，根据每个分子的当前位置，
+    //   把它放到环路上最匹配的相位上——这样从阶段 3 过渡到阶段 4
+    //   看起来就像「A 区底部空气受热上升、自然汇入循环」。
+    //   · A 区近地面   → 上升段 (loopT ≈ 0~0.20)
+    //   · A 区高空     → 顶部扩散段 (loopT ≈ 0.28~0.38)
+    //   · B/C 区高空   → 顶部下沉段 (loopT ≈ 0.52~0.66)
+    //   · B/C 区近地面 → 底部回流段 (loopT ≈ 0.80~0.92)
+    // ================================================================
+    function initLoopPhaseFromPositions() {
+      particles.forEach(p => {
+        if (p.isStatic) return;
+
+        const inA = p.relX > 0.36 && p.relX < 0.64;
+        const inB = p.relX < 0.36;
+
+        // 循环侧：B 用 -1，C 用 +1
+        if (p.origCol === 'B') p.loopSide = -1;
+        else if (p.origCol === 'C') p.loopSide = 1;
+        else p.loopSide = (p.relX < 0.5) ? -1 : 1;
+
+        const isHigh = p.relY < 0.50;
+
+        if (inA) {
+          if (isHigh) {
+            p.loopT = 0.28 + Math.random() * 0.10;
+          } else {
+            p.loopT = 0.02 + Math.random() * 0.18;
+          }
+        } else {
+          if (isHigh) {
+            p.loopT = 0.52 + Math.random() * 0.14;
+          } else {
+            p.loopT = 0.80 + Math.random() * 0.12;
+          }
+        }
+      });
+    }
+
+    function updatePhysics() {
+      const stage = state.stage;
+      const isPlaying = state.isPlaying;
+      const ease = 0.022 * state.speed;
+
+      particles.forEach(p => {
+        if (p.isDragged) return;
+
+        if (p.isStatic) {
+          p.relX += (Math.random() - 0.5) * 0.0003;
+          p.relY += (Math.random() - 0.5) * 0.0003;
+          if (p.relY < 0.04) p.relY = 0.04;
+          if (p.relY > 0.92) p.relY = 0.92;
+          return;
+        }
+
+        if (!isPlaying) return;
+        if (state.freeMode) return;
+
+        if (stage === 0) {
+          const homeEase = 0.03 * state.speed;
+          p.relX += (p.initRelX - p.relX) * homeEase;
+          p.relY += (p.initRelY - p.relY) * homeEase;
+          p.col = p.origCol;
+          return;
+        }
+
+        let targetX, targetY;
+
+        if (stage === 1) {
+          if (p.origCol === 'A') {
+            targetY = 0.28 + p.seedY * 0.12;
+            targetX = p.initRelX + (p.seedX - 0.5) * 0.04;
+            p.col = 'A';
+          } else {
+            targetY = 0.64 + p.seedY * 0.22;
+            targetX = p.initRelX + (p.seedX - 0.5) * 0.04;
+            p.col = p.origCol;
+          }
+          p.relX += (targetX - p.relX) * ease;
+          p.relY += (targetY - p.relY) * ease;
+        }
+        else if (stage === 2) {
+          if (p.origCol === 'A') {
+            const goLeft = p.seedX < 0.5;
+            if (goLeft) {
+              targetX = 0.13 + p.seedY * 0.14;
+              targetY = 0.28 + p.seedX * 0.12;
+            } else {
+              targetX = 0.73 + p.seedY * 0.14;
+              targetY = 0.28 + p.seedX * 0.12;
+            }
+            if (Math.abs(p.relX - targetX) < 0.08) {
+              p.col = goLeft ? 'B' : 'C';
+            } else {
+              p.col = 'A';
+            }
+          } else {
+            targetY = 0.64 + p.seedY * 0.22;
+            targetX = p.initRelX + (p.seedX - 0.5) * 0.04;
+            p.col = p.origCol;
+          }
+          p.relX += (targetX - p.relX) * ease;
+          p.relY += (targetY - p.relY) * ease;
+        }
+        else if (stage === 3) {
+          const isHighAlt = p.relY < Y_HIGH_BOUNDARY;
+          if (isHighAlt) {
+            p.relX += (Math.random() - 0.5) * 0.00015;
+            p.relY += (Math.random() - 0.5) * 0.00015;
+            return;
+          }
+          targetY = 0.66 + p.seedY * 0.20;
+          targetX = 0.40 + p.seedX * 0.20;
+          if (Math.abs(p.relX - targetX) < 0.06) {
+            p.col = 'A';
+          } else {
+            p.col = p.origCol;
+          }
+          p.relX += (targetX - p.relX) * ease;
+          p.relY += (targetY - p.relY) * ease;
+        }
+        else if (stage === 4) {
+          p.loopT = (p.loopT + 0.0022 * state.speed) % 1;
+          const pos = loopPosition(p, p.loopT);
+          const follow = 0.08 * state.speed;
+          p.relX += (pos.x - p.relX) * follow;
+          p.relY += (pos.y - p.relY) * follow;
+
+          if (p.loopT < 0.22 || p.loopT > 0.82) {
+            p.col = 'A';
+          } else {
+            p.col = p.loopSide < 0 ? 'B' : 'C';
+          }
+        }
+      });
+
+      separateParticles();
+      clampParticles();
+    }
+
+    let upperBulge = 0;
+    let lowerBulge = 0;
+
+    function updateIsobars() {
+      let targetUpper = 0;
+      let targetLower = 0;
+
+      if (state.stage === 0 || state.freeMode) {
+        targetUpper = 0;
+        targetLower = 0;
+      } else if (state.stage === 1) {
+        targetUpper = 0.35; targetLower = -0.15;
+      } else if (state.stage === 2) {
+        targetUpper = 1.0; targetLower = -0.3;
+      } else if (state.stage === 3) {
+        targetUpper = 0.8; targetLower = 1.0;
+      } else if (state.stage === 4) {
+        targetUpper = 1.0; targetLower = 1.0;
+      }
+
+      upperBulge += (targetUpper - upperBulge) * 0.05;
+      lowerBulge += (targetLower - lowerBulge) * 0.05;
+    }
+
+    function render() {
+      resizeCanvas();
+      ctx.clearRect(0, 0, w, h);
+
+      const textVarColor = getCssVar('--on-surface-variant') || 'rgba(0,0,0,0.55)';
+      const strokeDefault = getCssVar('--stroke-default') || '#e3e3e3';
+      const primaryColor = getCssVar('--primary') || '#3186ff';
+
+      const chart1 = getCssVar('--chart-1') || '#2575fc';
+      const chart7 = getCssVar('--chart-7') || '#2780c4';
+      const chart10 = getCssVar('--chart-10') || '#c84288';
+      const chart8 = getCssVar('--chart-8') || '#997112';
+
+      const colWidth = w * COL_WIDTH;
+      const colB_x = w * COL_B_X0;
+      const colA_x = w * COL_A_X0;
+      const colC_x = w * COL_C_X0;
+
+      const yGround = h * Y_GROUND;
+      const y23 = h * Y23;
+
+      ctx.beginPath();
+      ctx.moveTo(0, yGround);
+      ctx.lineTo(w, yGround);
+      ctx.strokeStyle = strokeDefault;
+      ctx.lineWidth = 2;
+      ctx.stroke();
+
+      const colsInfo = [
+        { x: colB_x, type: 'cold' },
+        { x: colA_x, type: 'hot' },
+        { x: colC_x, type: 'cold' }
+      ];
+
+      colsInfo.forEach(c => {
+        ctx.fillStyle = c.type === 'hot' ? 'rgba(200, 66, 136, 0.04)' : 'rgba(39, 128, 196, 0.04)';
+        ctx.fillRect(c.x, 20, colWidth, yGround - 20);
+
+        ctx.beginPath();
+        ctx.setLineDash([4, 4]);
+        ctx.strokeStyle = strokeDefault;
+        ctx.moveTo(c.x, 20);
+        ctx.lineTo(c.x, yGround);
+        ctx.moveTo(c.x + colWidth, 20);
+        ctx.lineTo(c.x + colWidth, yGround);
+        ctx.stroke();
+        ctx.setLineDash([]);
+
+        ctx.fillStyle = c.type === 'hot' ? 'rgba(200, 66, 136, 0.12)' : 'rgba(39, 128, 196, 0.12)';
+        ctx.fillRect(c.x + 4, yGround + 6, colWidth - 8, 26);
+
+        ctx.font = "bold 11px 'Google Sans Flex', sans-serif";
+        ctx.textAlign = 'center';
+        ctx.fillStyle = c.type === 'hot' ? chart10 : chart7;
+        ctx.fillText(c.type === 'hot' ? '受热区' : '受冷区', c.x + colWidth / 2, yGround + 23);
+      });
+
+      ctx.beginPath();
+      ctx.setLineDash([2, 4]);
+      ctx.strokeStyle = textVarColor;
+      ctx.lineWidth = 1;
+      ctx.moveTo(0, y23);
+      ctx.lineTo(w, y23);
+      ctx.stroke();
+      ctx.setLineDash([]);
+
+      ctx.font = "italic 11px 'Google Sans Code', monospace";
+      ctx.fillStyle = textVarColor;
+      ctx.textAlign = 'right';
+      ctx.fillText("下 2/3 环流高空界面", w - 10, y23 - 6);
+
+      particles.forEach(p => {
+        if (!state.showAllParticles && p.isStatic) return;
+
+        const px = p.relX * w;
+        const py = p.relY * h;
+
+        if (p.isDragged) {
+          ctx.beginPath();
+          ctx.arc(px, py, p.radius + 6, 0, Math.PI * 2);
+          ctx.fillStyle = chart10;
+          ctx.globalAlpha = 0.20;
+          ctx.fill();
+          ctx.globalAlpha = 1.0;
+        }
+
+        ctx.beginPath();
+        ctx.arc(px, py, p.radius, 0, Math.PI * 2);
+
+        if (p.isStatic) {
+          ctx.fillStyle = chart1;
+          ctx.globalAlpha = 0.25;
+        } else if (p.isDragged) {
+          ctx.globalAlpha = 1.0;
+          ctx.fillStyle = chart10;
+        } else {
+          ctx.globalAlpha = 0.85;
+          if (p.col === 'A') ctx.fillStyle = chart10;
+          else ctx.fillStyle = chart7;
+        }
+        ctx.fill();
+
+        if (p.isDragged) {
+          ctx.strokeStyle = chart10;
+          ctx.lineWidth = 1.8;
+          ctx.stroke();
+        }
+
+        ctx.globalAlpha = 1.0;
+      });
+
+      ctx.beginPath();
+      ctx.lineWidth = 2.5;
+      ctx.strokeStyle = chart8;
+
+      const upperAmp = 22 * upperBulge;
+      ctx.moveTo(0, y23);
+      ctx.bezierCurveTo(
+        colB_x + colWidth / 2, y23 + upperAmp * 0.6,
+        colA_x, y23 - upperAmp,
+        colA_x + colWidth / 2, y23 - upperAmp
+      );
+      ctx.bezierCurveTo(
+        colA_x + colWidth, y23 - upperAmp,
+        colC_x + colWidth / 2, y23 + upperAmp * 0.6,
+        w, y23
+      );
+      ctx.stroke();
+
+      ctx.fillStyle = chart8;
+      ctx.font = "bold 11px 'Google Sans Code', monospace";
+      ctx.textAlign = 'left';
+      ctx.fillText("2/3 高空等压面 P₂", 12, y23 - 8);
+
+      const ySurfIso = yGround - 25;
+      const lowerAmp = 18 * lowerBulge;
+
+      ctx.beginPath();
+      ctx.lineWidth = 2.5;
+      ctx.strokeStyle = chart8;
+
+      ctx.moveTo(0, ySurfIso);
+      ctx.bezierCurveTo(
+        colB_x + colWidth / 2, ySurfIso - lowerAmp * 0.6,
+        colA_x, ySurfIso + lowerAmp,
+        colA_x + colWidth / 2, ySurfIso + lowerAmp
+      );
+      ctx.bezierCurveTo(
+        colA_x + colWidth, ySurfIso + lowerAmp,
+        colC_x + colWidth / 2, ySurfIso - lowerAmp * 0.6,
+        w, ySurfIso
+      );
+      ctx.stroke();
+
+      ctx.fillText("近地面等压面 P₁", 12, ySurfIso - 8);
+
+      if (state.hoverRegion && !dragState.isDragging) {
+        const { col, level } = state.hoverRegion;
+        let rx = col === 'B' ? colB_x : (col === 'A' ? colA_x : colC_x);
+        let ry = level === 'high' ? 20 : y23;
+        let rh = level === 'high' ? (y23 - 20) : (yGround - y23);
+
+        ctx.fillStyle = primaryColor;
+        ctx.globalAlpha = 0.08;
+        ctx.fillRect(rx, ry, colWidth, rh);
+        ctx.globalAlpha = 1.0;
+
+        ctx.strokeStyle = primaryColor;
+        ctx.lineWidth = 1.5;
+        ctx.strokeRect(rx, ry, colWidth, rh);
+      }
+
+      // 画笔笔记（画在最上层）
+      if (strokes.length) {
+        const inkColor = getCssVar('--on-surface') || '#000000';
+        ctx.save();
+        ctx.lineCap = 'round';
+        ctx.lineJoin = 'round';
+        ctx.strokeStyle = inkColor;
+        ctx.lineWidth = 2.5;
+        for (let s = 0; s < strokes.length; s++) {
+          const pts = strokes[s].points;
+          if (pts.length < 1) continue;
+          ctx.beginPath();
+          ctx.moveTo(pts[0].x, pts[0].y);
+          for (let i = 1; i < pts.length; i++) {
+            ctx.lineTo(pts[i].x, pts[i].y);
+          }
+          ctx.stroke();
+        }
+        ctx.restore();
+      }
+    }
+
+    const PICK_RADIUS_PX = 18;
+    const BRUSH_RADIUS_PX = 55;
+
+    function canvasCoords(e) {
+      const rect = canvas.getBoundingClientRect();
+      const x = e.clientX - rect.left;
+      const y = e.clientY - rect.top;
+      return {
+        x: x,
+        y: y,
+        relX: x / w,
+        relY: y / h
+      };
+    }
+
+    function findNearestParticle(relX, relY, maxDistPx) {
+      let best = null;
+      let bestDist = maxDistPx;
+      for (let i = 0; i < particles.length; i++) {
+        const p = particles[i];
+        if (p.isStatic) continue;
+        const dx = (p.relX - relX) * w;
+        const dy = (p.relY - relY) * h;
+        const d = Math.sqrt(dx * dx + dy * dy);
+        if (d < bestDist) {
+          bestDist = d;
+          best = p;
+        }
+      }
+      return best;
+    }
+
+    canvas.addEventListener('pointerdown', (e) => {
+      e.preventDefault();
+      const coords = canvasCoords(e);
+
+      if (state.penMode) {
+        const stroke = { points: [{ x: coords.x, y: coords.y }] };
+        strokes.push(stroke);
+        dragState.currentStroke = stroke;
+        dragState.isDrawing = true;
+        canvas.setPointerCapture(e.pointerId);
+        return;
+      }
+
+      const captured = [];
+      const offsets = [];
+
+      for (let i = 0; i < particles.length; i++) {
+        const p = particles[i];
+        if (p.isStatic) continue;
+        const dx = (p.relX - coords.relX) * w;
+        const dy = (p.relY - coords.relY) * h;
+        if (dx * dx + dy * dy <= BRUSH_RADIUS_PX * BRUSH_RADIUS_PX) {
+          captured.push(p);
+          offsets.push({ relX: p.relX - coords.relX, relY: p.relY - coords.relY });
+        }
+      }
+
+      if (captured.length) {
+        captured.forEach(p => { p.isDragged = true; });
+        dragState.particles = captured;
+        dragState.offsets = offsets;
+        dragState.isDragging = true;
+
+        canvas.setPointerCapture(e.pointerId);
+        canvas.style.cursor = 'grabbing';
+
+        dragHint.classList.add('hidden');
+        dragCounter.classList.add('visible');
+      }
+    });
+
+    canvas.addEventListener('pointermove', (e) => {
+      const coords = canvasCoords(e);
+      state.mouseX = coords.x;
+      state.mouseY = coords.y;
+
+      if (state.penMode) {
+        if (dragState.isDrawing && dragState.currentStroke) {
+          const pts = dragState.currentStroke.points;
+          const last = pts[pts.length - 1];
+          const dx = coords.x - last.x;
+          const dy = coords.y - last.y;
+          if (dx * dx + dy * dy > 4) {
+            pts.push({ x: coords.x, y: coords.y });
+          }
+        }
+        return;
+      }
+
+      if (dragState.isDragging) {
+        const captured = dragState.particles;
+        const offsets = dragState.offsets;
+        for (let i = 0; i < captured.length; i++) {
+          const p = captured[i];
+          const off = offsets[i];
+          p.relX = coords.relX + off.relX;
+          p.relY = coords.relY + off.relY;
+
+          p.relX = Math.max(0.02, Math.min(0.98, p.relX));
+          p.relY = Math.max(0.03, Math.min(0.90, p.relY));
+        }
+        return;
+      }
+
+      const hover = findNearestParticle(coords.relX, coords.relY, PICK_RADIUS_PX);
+      dragState.hoverTarget = hover;
+      canvas.style.cursor = hover ? 'grab' : 'crosshair';
+
+      const colWidth = w * COL_WIDTH;
+      const colB_x = w * COL_B_X0;
+      const colA_x = w * COL_A_X0;
+      const colC_x = w * COL_C_X0;
+      const y23 = h * Y23;
+      const yGround = h * Y_GROUND;
+
+      let detected = null;
+      if (coords.y >= 20 && coords.y <= yGround) {
+        let col = null;
+        if (coords.x >= colB_x && coords.x <= colB_x + colWidth) col = 'B';
+        else if (coords.x >= colA_x && coords.x <= colA_x + colWidth) col = 'A';
+        else if (coords.x >= colC_x && coords.x <= colC_x + colWidth) col = 'C';
+
+        if (col) {
+          let level = coords.y < y23 ? 'high' : 'low';
+          detected = { col, level };
+        }
+      }
+
+      state.hoverRegion = detected;
+    });
+
+    function endDrag(e) {
+      if (dragState.isDrawing) {
+        dragState.isDrawing = false;
+        dragState.currentStroke = null;
+        return;
+      }
+      if (!dragState.isDragging) return;
+      dragState.particles.forEach(p => {
+        p.col = p.origCol;
+        p.isDragged = false;
+      });
+      dragState.particles = [];
+      dragState.offsets = [];
+      dragState.isDragging = false;
+      canvas.style.cursor = 'crosshair';
+      dragCounter.classList.remove('visible');
+    }
+
+    canvas.addEventListener('pointerup', endDrag);
+    canvas.addEventListener('pointercancel', endDrag);
+    canvas.addEventListener('pointerleave', (e) => {
+      if (dragState.isDragging) return;
+      state.hoverRegion = null;
+    });
+
+    canvas.addEventListener('touchstart', (e) => {
+      if (dragState.isDragging) e.preventDefault();
+    }, { passive: false });
+
+    function animationLoop() {
+      updatePhysics();
+      updateIsobars();
+      render();
+      requestAnimationFrame(animationLoop);
+    }
+
+    resizeCanvas();
+    initParticles();
+    window.addEventListener('resize', resizeCanvas);
+    requestAnimationFrame(animationLoop);
+
+    setTimeout(() => dragHint.classList.add('hidden'), 8000);
+
+    function setStage(stageIdx) {
+      const wasStage = state.stage;
+      state.stage = stageIdx;
+
+      // ★ 进入阶段 4 时：根据每个分子的当前位置，把它放入环路的合适相位，
+      //    使 A 区底部空气自然受热上升并汇入循环。
+      if (stageIdx === 4 && wasStage !== 4) {
+        initLoopPhaseFromPositions();
+      }
+
+      document.querySelectorAll('.stage-btn').forEach(btn => {
+        btn.classList.toggle('is-active', parseInt(btn.dataset.stage) === stageIdx);
+      });
+
+      const meta = STAGE_META[stageIdx];
+      document.getElementById('statusText').textContent = `阶段 ${stageIdx}: ${meta.title.split(':')[1]}`;
+      document.getElementById('infoTitle').textContent = meta.title;
+      document.getElementById('infoProgress').textContent = meta.progress;
+      document.getElementById('infoDesc').textContent = meta.desc;
+    }
+
+    document.getElementById('stageNav').addEventListener('click', (e) => {
+      const btn = e.target.closest('.stage-btn');
+      if (btn) {
+        setStage(parseInt(btn.dataset.stage));
+      }
+    });
+
+    const playBtn = document.getElementById('playBtn');
+    playBtn.addEventListener('click', () => {
+      state.isPlaying = !state.isPlaying;
+      if (playBtn) playBtn.textContent = state.isPlaying ? '暂停' : '播放';
+      const statusDot = document.getElementById('statusDot');
+      statusDot.style.background = state.isPlaying ? 'var(--primary, #3186ff)' : 'var(--on-surface-variant)';
+      statusDot.style.boxShadow = state.isPlaying ? '0 0 6px var(--primary, #3186ff)' : 'none';
+    });
+
+    document.getElementById('resetBtn').addEventListener('click', () => {
+      dragState.particles.forEach(p => { p.isDragged = false; });
+      dragState.particles = [];
+      dragState.offsets = [];
+      dragState.isDragging = false;
+      initParticles();
+      setStage(0);
+      if (!state.isPlaying) {
+        state.isPlaying = true;
+        if (playBtn) playBtn.textContent = '暂停';
+      }
+    });
+
+    const freeBtn = document.getElementById('freeBtn');
+    freeBtn.addEventListener('click', () => {
+      state.freeMode = !state.freeMode;
+      freeBtn.classList.toggle('is-active', state.freeMode);
+      if (state.freeMode) {
+        freeBtn.textContent = '自由拖动模式 (开)';
+        document.getElementById('statusText').textContent = '自由拖动模式';
+        document.getElementById('infoTitle').textContent = '自由拖动模式';
+        document.getElementById('infoProgress').textContent = '所有阶段物理暂停';
+        document.getElementById('infoDesc').textContent = '按住并拖动会连带周围一片分子一起移动，观察它们因防重叠约束推开邻近分子。松手后分子保留在当前位置。';
+      } else {
+        freeBtn.textContent = '自由拖动模式';
+        setStage(state.stage);
+      }
+    });
+
+    const particleToggle = document.getElementById('particleToggle');
+    particleToggle.addEventListener('click', () => {
+      state.showAllParticles = !state.showAllParticles;
+      particleToggle.classList.toggle('is-active', state.showAllParticles);
+      document.getElementById('toggleText').textContent = state.showAllParticles
+        ? "显现: 全部微粒"
+        : "显现: 仅动态微粒";
+    });
+
+    // ================================================================
+    // 分子运动速度调节
+    // ================================================================
+    const SPEED_STEPS = [0.25, 0.5, 0.75, 1, 1.5, 2, 3, 4];
+    const speedValueEl = document.getElementById('speedValue');
+    const slowBtn = document.getElementById('slowBtn');
+    const fastBtn = document.getElementById('fastBtn');
+
+    function formatSpeed(m) {
+      return (Math.round(m * 100) / 100) + '×';
+    }
+
+    function updateSpeedUI() {
+      const i = SPEED_STEPS.indexOf(state.speed);
+      speedValueEl.textContent = formatSpeed(state.speed);
+      slowBtn.disabled = i <= 0;
+      fastBtn.disabled = i >= SPEED_STEPS.length - 1;
+    }
+
+    function stepSpeed(delta) {
+      const i = SPEED_STEPS.indexOf(state.speed);
+      const ni = Math.max(0, Math.min(SPEED_STEPS.length - 1, i + delta));
+      if (ni === i) return;
+      state.speed = SPEED_STEPS[ni];
+      updateSpeedUI();
+    }
+
+    slowBtn.addEventListener('click', () => stepSpeed(-1));
+    fastBtn.addEventListener('click', () => stepSpeed(1));
+    speedValueEl.addEventListener('click', () => {
+      state.speed = 1;
+      updateSpeedUI();
+    });
+    updateSpeedUI();
+
+    // ================================================================
+    // 画笔笔记模式
+    // ================================================================
+    const penBtn = document.getElementById('penBtn');
+    const clearNotesBtn = document.getElementById('clearNotesBtn');
+
+    penBtn.addEventListener('click', () => {
+      state.penMode = !state.penMode;
+      penBtn.classList.toggle('is-active', state.penMode);
+      if (state.penMode) {
+        penBtn.textContent = '画笔模式 (开)';
+        canvas.style.cursor = 'crosshair';
+      } else {
+        penBtn.textContent = '画笔模式';
+        canvas.style.cursor = 'crosshair';
+      }
+    });
+
+    clearNotesBtn.addEventListener('click', () => {
+      strokes = [];
+    });
+
+    const applyTheme = t => {
+      document.documentElement.setAttribute('data-theme', t);
+    };
+    if (!document.documentElement.hasAttribute('data-theme') && window.matchMedia?.('(prefers-color-scheme: dark)').matches) {
+      applyTheme('dark');
+    }
+    window.addEventListener('message', e => {
+      if (e.data?.type === 'set-theme' || e.data?.type === 'APPLY_THEME') applyTheme(e.data.theme);
+    });
+
+    (function autoResize() {
+      function notifyHeight() {
+        const c = document.querySelector('.widget-container') || document.body;
+        if (!c) return;
+        const h = Math.ceil(Math.max(c.getBoundingClientRect().bottom, c.scrollHeight));
+        window.parent.postMessage({type: 'widget-resize', height: h}, '*');
+      }
+      window.addEventListener('load', () => setTimeout(notifyHeight, 120));
+      new ResizeObserver(() => notifyHeight()).observe(document.querySelector('.widget-container') || document.body);
+    })();
+  </script>
+
+<script>/*luminous-slider-normalizer*/(function(){function f(r){if(!r||r.type!=='range')return;var mn=parseFloat(r.min||'0'),mx=parseFloat(r.max||'100'),v=parseFloat(r.value);if(isNaN(v))v=(mn+mx)/2;var p=mx>mn?((v-mn)/(mx-mn))*100:50;r.style.setProperty('--progress',p+'%');r.style.removeProperty('--slider-fill');}function all(){document.querySelectorAll('input[type="range"], .lumi-slider').forEach(f);}document.addEventListener('input',function(e){f(e.target);});if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',all);else all();})();</script>
+</body>
+</html>
